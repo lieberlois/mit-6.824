@@ -1,6 +1,6 @@
 package models
 
-import "6.824/porcupine"
+import "6.5840/porcupine"
 import "fmt"
 import "sort"
 
@@ -47,9 +47,12 @@ var KvModel = porcupine.Model{
 		} else if inp.Op == 1 {
 			// put
 			return true, inp.Value
-		} else {
+		} else if inp.Op == 2 {
 			// append
 			return true, (st + inp.Value)
+		} else {
+			// append with return value
+			return out.Value == st, (st + inp.Value)
 		}
 	},
 	DescribeOperation: func(input, output interface{}) string {
