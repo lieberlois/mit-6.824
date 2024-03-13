@@ -1,9 +1,12 @@
 package kvsrv
 
-import "6.5840/labrpc"
-import "crypto/rand"
-import "math/big"
+import (
+	"crypto/rand"
+	"fmt"
+	"math/big"
 
+	"6.5840/labrpc"
+)
 
 type Clerk struct {
 	server *labrpc.ClientEnd
@@ -18,7 +21,7 @@ func nrand() int64 {
 }
 
 func MakeClerk(server *labrpc.ClientEnd) *Clerk {
-	ck := new(Clerk)
+	ck := &Clerk{}
 	ck.server = server
 	// You'll have to add code here.
 	return ck
@@ -36,8 +39,15 @@ func MakeClerk(server *labrpc.ClientEnd) *Clerk {
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) Get(key string) string {
 
-	// You will have to modify this function.
-	return ""
+	args := &GetArgs{
+		Key: key,
+	}
+	reply := &GetReply{}
+
+	for !ck.server.Call("KVServer.Get", args, reply) {
+	}
+
+	return reply.Value
 }
 
 // shared by Put and Append.
@@ -49,8 +59,38 @@ func (ck *Clerk) Get(key string) string {
 // must match the declared types of the RPC handler function's
 // arguments. and reply must be passed as a pointer.
 func (ck *Clerk) PutAppend(key string, value string, op string) string {
-	// You will have to modify this function.
-	return ""
+	id := nrand()
+
+	args := &PutAppendArgs{
+		Key:       key,
+		Value:     value,
+		RequestId: id,
+		Mode:      Write,
+	}
+
+	reply := &PutAppendReply{}
+
+	rpcName := fmt.Sprintf("KVServer.%s", op)
+
+	// Retry until success
+	for !ck.server.Call(rpcName, args, reply) {
+	}
+
+	result := reply.Value
+
+	// Report Success
+	args.Mode = ReportSuccess
+	for !ck.server.Call(rpcName, args, reply) {
+	}
+
+	// Linearizable: Wx0 -> Rx0 -> Wx1 -> Rx1
+	//
+	//  |---Wx0---|
+	//				|-----Wx1----------(retry)--|
+	// 					|---Rx0---|  							(Concurrent - Server can choose order)
+	// 												|--Rx1--|	(works because Wx1 blocks/retries until success)
+
+	return result
 }
 
 func (ck *Clerk) Put(key string, value string) {
